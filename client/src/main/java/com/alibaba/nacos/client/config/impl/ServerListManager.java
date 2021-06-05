@@ -31,7 +31,7 @@ import com.alibaba.nacos.common.http.param.Query;
 import com.alibaba.nacos.common.lifecycle.Closeable;
 import com.alibaba.nacos.common.notify.NotifyCenter;
 import com.alibaba.nacos.common.utils.IoUtils;
-import com.alibaba.nacos.common.utils.IPUtil;
+import com.alibaba.nacos.common.utils.InternetAddressUtil;
 import com.alibaba.nacos.common.utils.StringUtils;
 import com.alibaba.nacos.common.utils.ThreadUtils;
 import org.slf4j.Logger;
@@ -43,6 +43,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
 import java.util.Random;
+import java.util.StringTokenizer;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -89,9 +90,9 @@ public class ServerListManager implements Closeable {
         this.isStarted = true;
         List<String> serverAddrs = new ArrayList<String>();
         for (String serverAddr : fixed) {
-            String[] serverAddrArr = IPUtil.splitIPPortStr(serverAddr);
+            String[] serverAddrArr = InternetAddressUtil.splitIPPortStr(serverAddr);
             if (serverAddrArr.length == 1) {
-                serverAddrs.add(serverAddrArr[0] + IPUtil.IP_PORT_SPLITER + ParamUtil.getDefaultServerPort());
+                serverAddrs.add(serverAddrArr[0] + InternetAddressUtil.IP_PORT_SPLITER + ParamUtil.getDefaultServerPort());
             } else {
                 serverAddrs.add(serverAddr);
             }
@@ -154,14 +155,15 @@ public class ServerListManager implements Closeable {
         if (StringUtils.isNotEmpty(serverAddrsStr)) {
             this.isFixed = true;
             List<String> serverAddrs = new ArrayList<String>();
-            String[] serverAddrsArr = this.serverAddrsStr.split(",");
-            for (String serverAddr : serverAddrsArr) {
+            StringTokenizer serverAddrsTokens = new StringTokenizer(this.serverAddrsStr, ",;");
+            while (serverAddrsTokens.hasMoreTokens()) {
+                String serverAddr = serverAddrsTokens.nextToken().trim();
                 if (serverAddr.startsWith(HTTPS) || serverAddr.startsWith(HTTP)) {
                     serverAddrs.add(serverAddr);
                 } else {
-                    String[] serverAddrArr = IPUtil.splitIPPortStr(serverAddr);
+                    String[] serverAddrArr = InternetAddressUtil.splitIPPortStr(serverAddr);
                     if (serverAddrArr.length == 1) {
-                        serverAddrs.add(HTTP + serverAddrArr[0] + IPUtil.IP_PORT_SPLITER + ParamUtil
+                        serverAddrs.add(HTTP + serverAddrArr[0] + InternetAddressUtil.IP_PORT_SPLITER + ParamUtil
                                 .getDefaultServerPort());
                     } else {
                         serverAddrs.add(HTTP + serverAddr);
@@ -358,10 +360,10 @@ public class ServerListManager implements Closeable {
                 List<String> result = new ArrayList<String>(lines.size());
                 for (String serverAddr : lines) {
                     if (StringUtils.isNotBlank(serverAddr)) {
-                        String[] ipPort = IPUtil.splitIPPortStr(serverAddr.trim());
+                        String[] ipPort = InternetAddressUtil.splitIPPortStr(serverAddr.trim());
                         String ip = ipPort[0].trim();
                         if (ipPort.length == 1) {
-                            result.add(ip + IPUtil.IP_PORT_SPLITER + ParamUtil.getDefaultServerPort());
+                            result.add(ip + InternetAddressUtil.IP_PORT_SPLITER + ParamUtil.getDefaultServerPort());
                         } else {
                             result.add(serverAddr);
                         }
@@ -408,6 +410,22 @@ public class ServerListManager implements Closeable {
     public void refreshCurrentServerAddr() {
         iterator = iterator();
         currentServerAddr = iterator.next();
+    }
+    
+    public String getNextServerAddr() {
+        if (iterator == null || !iterator.hasNext()) {
+            refreshCurrentServerAddr();
+            return currentServerAddr;
+        }
+        try {
+            String next = iterator.next();
+            return next;
+        } catch (Exception e) {
+            //No nothing.
+        }
+        refreshCurrentServerAddr();
+        return currentServerAddr;
+        
     }
     
     public String getCurrentServerAddr() {
